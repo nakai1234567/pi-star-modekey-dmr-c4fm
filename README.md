@@ -4,7 +4,7 @@
 > A physical button/LED/LCD tool to switch DMR and C4FM modes on Pi-Star
 
 ---
-
+```bash
 我只有一个 Pi-Star 热点，但有两台不同模式的手台。每次切换模式都需要打开电脑或手机登录 Pi-Star 管理页面，这非常麻烦。  
 Pi-Star 自带多模式守听（Mode Scanning）功能，但它更像轮询，当 DMR 频道非常热闹时，C4FM 很难得到机会。  
 我希望在某个时刻可以快速切换到另一个模式，于是想有一个按键。
@@ -17,7 +17,7 @@ I wanted a simple button to quickly switch between modes whenever I need to.
 ---
 
 ## 硬件需求 / Hardware Requirements
-
+```bash
 - 自复位按键 (GPIO 17) = 物理引脚 11  
   / Push button (GPIO 17, physical pin 11)  
 - 可选 LED (GPIO 27) = 物理引脚 13，串联电阻 220-470Ω  
@@ -35,7 +35,7 @@ I wanted a simple button to quickly switch between modes whenever I need to.
 ---
 
 ## 功能 / Features
-
+```bash
 - **按键切换模式 / Mode switching via a physical button**  
 
 - **LED 状态反馈 / LED status indicator**  
