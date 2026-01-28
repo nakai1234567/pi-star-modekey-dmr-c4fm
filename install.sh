@@ -10,6 +10,34 @@ set -e
 INSTALL_DIR="/opt/pi-star-modekey"
 SERVICE_FILE="/etc/systemd/system/pi-star-modekey.service"
 
+show_help() {
+    echo "Pi-Star ModeKey DMR / C4FM Installer"
+    echo
+    echo "Usage:"
+    echo "  bash install.sh"
+    echo "  bash install.sh --help"
+    echo
+    echo "Description:"
+    echo "  Install Pi-Star ModeKey service with physical button + LED"
+    echo "  Optional I2C LCD support is selectable during installation."
+    echo
+    echo "Options:"
+    echo "  --help    Show this help message and exit"
+    echo
+    echo "Notes:"
+    echo "  - Run 'rpi-rw' before installation (Pi-Star default is read-only)"
+    echo "  - Installation directory: /opt/pi-star-modekey"
+    echo "  - A systemd service will be created and enabled automatically"
+    echo
+    echo "73! BI1OHC"
+}
+
+# ---- help 参数 ----
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    show_help
+    exit 0
+fi
+
 echo "============================================"
 echo " Pi-Star ModeKey DMR / C4FM Installer"
 echo "============================================"
@@ -40,18 +68,13 @@ echo "📦 安装基础依赖（GPIO）"
 sudo apt update
 sudo apt install -y python3 python3-rpi.gpio
 
-# ============================
-# 无 LCD 版本
-# ============================
 if [[ "$MODE" == "1" ]]; then
     echo
     echo "➡️ 选择：无 LCD 版本"
 
-    echo "📄 安装 switcher.py"
     sudo cp switcher.py "$INSTALL_DIR/"
     sudo chmod +x "$INSTALL_DIR/switcher.py"
 
-    echo "🧩 创建 systemd 服务"
     sudo tee "$SERVICE_FILE" > /dev/null <<EOF
 [Unit]
 Description=Pi-Star ModeKey Switcher (No LCD)
@@ -66,23 +89,16 @@ RestartSec=3
 [Install]
 WantedBy=multi-user.target
 EOF
-
-# ============================
-# LCD 版本
-# ============================
 else
     echo
     echo "➡️ 选择：LCD 版本"
 
-    echo "📦 安装 I2C / LCD 相关依赖"
     sudo apt install -y python3-smbus i2c-tools
     sudo pip3 install RPLCD
 
-    echo "📄 安装 switcher-lcd.py"
     sudo cp switcher-lcd.py "$INSTALL_DIR/"
     sudo chmod +x "$INSTALL_DIR/switcher-lcd.py"
 
-    echo "🧩 创建 systemd 服务"
     sudo tee "$SERVICE_FILE" > /dev/null <<EOF
 [Unit]
 Description=Pi-Star ModeKey Switcher (LCD)
@@ -107,11 +123,4 @@ sudo systemctl restart pi-star-modekey.service
 
 echo
 echo "✅ 安装完成！"
-echo
-echo "👉 当前运行脚本："
 systemctl cat pi-star-modekey.service | grep ExecStart
-
-echo
-echo "👉 查看运行状态："
-echo "   systemctl status pi-star-modekey.service"
-echo
