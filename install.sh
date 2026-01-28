@@ -1,139 +1,117 @@
-#!/usr/bin/env bash
-# ============================================================
-# Pi-Star ModeKey Switcher Installer
-# Author : BI1OHC
-# Date   : 2026-01-25
-#
-# Interactive installer:
-#   1) No LCD
-#   2) I2C LCD (HD44780 / PCF8574)
-# ============================================================
+#!/bin/bash
+# ============================================
+# Pi-Star ModeKey DMR / C4FM Installer
+# For Raspberry Pi / Pi-Star
+# 2026-01-25 | BI1OHC 73!
+# ============================================
 
 set -e
 
-PROJECT_NAME="pi-star-modekey"
-INSTALL_DIR="/opt/${PROJECT_NAME}"
+INSTALL_DIR="/opt/pi-star-modekey"
+SERVICE_FILE="/etc/systemd/system/pi-star-modekey.service"
 
-USE_LCD=false
+echo "============================================"
+echo " Pi-Star ModeKey DMR / C4FM Installer"
+echo "============================================"
+echo
+echo "请选择你要安装的版本："
+echo
+echo "  1) 无 LCD 版本（仅按键 + LED）"
+echo "  2) LCD 版本（按键 + LED + I2C LCD）"
+echo
+read -p "请输入 1 或 2 并回车: " MODE
 
-# ------------------------------------------------------------
-# Root check
-# ------------------------------------------------------------
-if [[ $EUID -ne 0 ]]; then
-    echo "❌ Please run as root"
-    echo "   sudo ./install.sh"
+if [[ "$MODE" != "1" && "$MODE" != "2" ]]; then
+    echo "❌ 输入无效，安装已终止"
     exit 1
 fi
 
-# ------------------------------------------------------------
-# Welcome
-# ------------------------------------------------------------
-clear
-echo "============================================================"
-echo " Pi-Star ModeKey Installer"
-echo " Author : BI1OHC"
-echo "============================================================"
 echo
-echo "Please select installation type:"
-echo
-echo "  1) No LCD (Button + LED only)"
-echo "  2) With I2C LCD (HD44780 / PCF8574)"
-echo
-read -rp "Enter choice [1-2]: " choice
+echo "📁 创建安装目录: $INSTALL_DIR"
+sudo mkdir -p "$INSTALL_DIR"
 
-case "$choice" in
-    1)
-        USE_LCD=false
-        ;;
-    2)
-        USE_LCD=true
-        ;;
-    *)
-        echo "❌ Invalid selection"
-        exit 1
-        ;;
-esac
+echo "🧹 清理旧文件（如存在）"
+sudo rm -f "$INSTALL_DIR/switcher.py"
+sudo rm -f "$INSTALL_DIR/switcher-lcd.py"
+sudo rm -f "$SERVICE_FILE"
 
 echo
-echo "------------------------------------------------------------"
-echo " LCD support : ${USE_LCD}"
-echo "------------------------------------------------------------"
-echo
+echo "📦 安装基础依赖（GPIO）"
+sudo apt update
+sudo apt install -y python3 python3-rpi.gpio
 
-# ------------------------------------------------------------
-# System update
-# ------------------------------------------------------------
-echo "📦 Updating system packages..."
-apt update
+# ============================
+# 无 LCD 版本
+# ============================
+if [[ "$MODE" == "1" ]]; then
+    echo
+    echo "➡️ 选择：无 LCD 版本"
 
-# ------------------------------------------------------------
-# Base dependencies
-# ------------------------------------------------------------
-echo "📦 Installing base dependencies..."
-apt install -y \
-    python3 \
-    python3-pip
+    echo "📄 安装 switcher.py"
+    sudo cp switcher.py "$INSTALL_DIR/"
+    sudo chmod +x "$INSTALL_DIR/switcher.py"
 
-# ------------------------------------------------------------
-# LCD dependencies (only if selected)
-# ------------------------------------------------------------
-if [[ "${USE_LCD}" == true ]]; then
-    echo "📟 Installing LCD / I2C dependencies..."
-    apt install -y \
-        python3-smbus \
-        i2c-tools
+    echo "🧩 创建 systemd 服务"
+    sudo tee "$SERVICE_FILE" > /dev/null <<EOF
+[Unit]
+Description=Pi-Star ModeKey Switcher (No LCD)
+After=multi-user.target
 
-    if command -v raspi-config >/dev/null 2>&1; then
-        echo "🔧 Enabling I2C interface..."
-        raspi-config nonint do_i2c 0
-    else
-        echo "⚠️ raspi-config not found, enable I2C manually if needed"
-    fi
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 $INSTALL_DIR/switcher.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# ============================
+# LCD 版本
+# ============================
 else
-    echo "🚫 Skipping LCD dependencies"
-fi
+    echo
+    echo "➡️ 选择：LCD 版本"
 
-# ------------------------------------------------------------
-# Install files
-# ------------------------------------------------------------
-echo
-echo "📂 Installing files to ${INSTALL_DIR}"
+    echo "📦 安装 I2C / LCD 相关依赖"
+    sudo apt install -y python3-smbus i2c-tools
+    sudo pip3 install RPLCD
 
-mkdir -p "${INSTALL_DIR}"
+    echo "📄 安装 switcher-lcd.py"
+    sudo cp switcher-lcd.py "$INSTALL_DIR/"
+    sudo chmod +x "$INSTALL_DIR/switcher-lcd.py"
 
-cp -v switcher.py "${INSTALL_DIR}/"
+    echo "🧩 创建 systemd 服务"
+    sudo tee "$SERVICE_FILE" > /dev/null <<EOF
+[Unit]
+Description=Pi-Star ModeKey Switcher (LCD)
+After=multi-user.target
 
-if [[ "${USE_LCD}" == true ]]; then
-    cp -v switcher-lcd.py "${INSTALL_DIR}/"
-fi
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 $INSTALL_DIR/switcher-lcd.py
+Restart=always
+RestartSec=3
 
-chmod +x "${INSTALL_DIR}/switcher.py"
-
-if [[ "${USE_LCD}" == true ]]; then
-    chmod +x "${INSTALL_DIR}/switcher-lcd.py"
-fi
-
-# ------------------------------------------------------------
-# Finish
-# ------------------------------------------------------------
-echo
-echo "============================================================"
-echo " ✅ Installation completed successfully"
-echo "------------------------------------------------------------"
-echo " Install path : ${INSTALL_DIR}"
-echo " LCD support : ${USE_LCD}"
-echo
-
-if [[ "${USE_LCD}" == true ]]; then
-    echo " Next steps:"
-    echo "   1. Reboot system"
-    echo "   2. Check I2C: i2cdetect -y 1"
-    echo "   3. Run: python3 ${INSTALL_DIR}/switcher-lcd.py"
-else
-    echo " Next steps:"
-    echo "   Run: python3 ${INSTALL_DIR}/switcher.py"
+[Install]
+WantedBy=multi-user.target
+EOF
 fi
 
 echo
-echo " BI1OHC 73!"
-echo "============================================================"
+echo "🔄 重新加载 systemd"
+sudo systemctl daemon-reload
+sudo systemctl enable pi-star-modekey.service
+sudo systemctl restart pi-star-modekey.service
+
+echo
+echo "✅ 安装完成！"
+echo
+echo "👉 当前运行脚本："
+systemctl cat pi-star-modekey.service | grep ExecStart
+
+echo
+echo "👉 查看运行状态："
+echo "   systemctl status pi-star-modekey.service"
+echo
