@@ -1,86 +1,139 @@
-#!/bin/bash
-# ============================================
-# Pi-Star ModeKey DMR / C4FM Installer
-# For Raspberry Pi 3B+
-# BI1OHC 73！
-# ============================================
+#!/usr/bin/env bash
+# ============================================================
+# Pi-Star ModeKey Switcher Installer
+# Author : BI1OHC
+# Date   : 2026-01-25
+#
+# Interactive installer:
+#   1) No LCD
+#   2) I2C LCD (HD44780 / PCF8574)
+# ============================================================
 
 set -e
 
-echo "============================================"
-echo " Pi-Star ModeKey DMR / C4FM Installer"
-echo " Target: Raspberry Pi / Pi-Star"
-echo "============================================"
+PROJECT_NAME="pi-star-modekey"
+INSTALL_DIR="/opt/${PROJECT_NAME}"
 
-# --- 必须是 root ---
-if [ "$EUID" -ne 0 ]; then
-  echo "❌ Please run as root:"
-  echo "   sudo ./install.sh"
-  exit 1
+USE_LCD=false
+
+# ------------------------------------------------------------
+# Root check
+# ------------------------------------------------------------
+if [[ $EUID -ne 0 ]]; then
+    echo "❌ Please run as root"
+    echo "   sudo ./install.sh"
+    exit 1
 fi
 
-echo "▶ Updating system package list..."
+# ------------------------------------------------------------
+# Welcome
+# ------------------------------------------------------------
+clear
+echo "============================================================"
+echo " Pi-Star ModeKey Installer"
+echo " Author : BI1OHC"
+echo "============================================================"
+echo
+echo "Please select installation type:"
+echo
+echo "  1) No LCD (Button + LED only)"
+echo "  2) With I2C LCD (HD44780 / PCF8574)"
+echo
+read -rp "Enter choice [1-2]: " choice
+
+case "$choice" in
+    1)
+        USE_LCD=false
+        ;;
+    2)
+        USE_LCD=true
+        ;;
+    *)
+        echo "❌ Invalid selection"
+        exit 1
+        ;;
+esac
+
+echo
+echo "------------------------------------------------------------"
+echo " LCD support : ${USE_LCD}"
+echo "------------------------------------------------------------"
+echo
+
+# ------------------------------------------------------------
+# System update
+# ------------------------------------------------------------
+echo "📦 Updating system packages..."
 apt update
 
-echo "▶ Installing system dependencies..."
+# ------------------------------------------------------------
+# Base dependencies
+# ------------------------------------------------------------
+echo "📦 Installing base dependencies..."
 apt install -y \
-  python3 \
-  python3-pip \
-  python3-rpi.gpio \
-  python3-smbus \
-  i2c-tools
+    python3 \
+    python3-pip
 
-echo "▶ Installing Python libraries..."
-pip3 install --no-cache-dir RPLCD smbus2
+# ------------------------------------------------------------
+# LCD dependencies (only if selected)
+# ------------------------------------------------------------
+if [[ "${USE_LCD}" == true ]]; then
+    echo "📟 Installing LCD / I2C dependencies..."
+    apt install -y \
+        python3-smbus \
+        i2c-tools
 
-# --- I2C 提示 ---
-echo
-echo "▶ Checking I2C status..."
-if ! lsmod | grep -q i2c_bcm; then
-  echo "⚠ I2C kernel module not loaded."
-  echo "  Please ensure I2C is enabled:"
-  echo "  sudo raspi-config → Interface Options → I2C"
+    if command -v raspi-config >/dev/null 2>&1; then
+        echo "🔧 Enabling I2C interface..."
+        raspi-config nonint do_i2c 0
+    else
+        echo "⚠️ raspi-config not found, enable I2C manually if needed"
+    fi
 else
-  echo "✔ I2C module detected."
+    echo "🚫 Skipping LCD dependencies"
 fi
 
-# --- 脚本安装位置 ---
-INSTALL_DIR="/opt/pi-star-modekey"
-SCRIPT_NAME="switcher.py"
-
+# ------------------------------------------------------------
+# Install files
+# ------------------------------------------------------------
 echo
-echo "▶ Installing switcher script..."
-mkdir -p $INSTALL_DIR
-cp $SCRIPT_NAME $INSTALL_DIR/
-chmod +x $INSTALL_DIR/$SCRIPT_NAME
+echo "📂 Installing files to ${INSTALL_DIR}"
 
-# --- systemd 服务 ---
-SERVICE_FILE="/etc/systemd/system/pi-star-modekey.service"
+mkdir -p "${INSTALL_DIR}"
 
-echo "▶ Creating systemd service..."
-cat > $SERVICE_FILE << EOF
-[Unit]
-Description=Pi-Star ModeKey DMR/C4FM Switcher
-After=multi-user.target
+cp -v switcher.py "${INSTALL_DIR}/"
 
-[Service]
-Type=simple
-ExecStart=/usr/bin/python3 /opt/pi-star-modekey/switcher.py
-Restart=always
-User=root
+if [[ "${USE_LCD}" == true ]]; then
+    cp -v switcher-lcd.py "${INSTALL_DIR}/"
+fi
 
-[Install]
-WantedBy=multi-user.target
-EOF
+chmod +x "${INSTALL_DIR}/switcher.py"
 
-echo "▶ Enabling service..."
-systemctl daemon-reload
-systemctl enable pi-star-modekey.service
+if [[ "${USE_LCD}" == true ]]; then
+    chmod +x "${INSTALL_DIR}/switcher-lcd.py"
+fi
 
+# ------------------------------------------------------------
+# Finish
+# ------------------------------------------------------------
 echo
-echo "============================================"
+echo "============================================================"
 echo " ✅ Installation completed successfully"
-echo " ▶ Reboot recommended"
-echo " ▶ Service name: pi-star-modekey"
-echo "============================================"
-echo 
+echo "------------------------------------------------------------"
+echo " Install path : ${INSTALL_DIR}"
+echo " LCD support : ${USE_LCD}"
+echo
+
+if [[ "${USE_LCD}" == true ]]; then
+    echo " Next steps:"
+    echo "   1. Reboot system"
+    echo "   2. Check I2C: i2cdetect -y 1"
+    echo "   3. Run: python3 ${INSTALL_DIR}/switcher-lcd.py"
+else
+    echo " Next steps:"
+    echo "   Run: python3 ${INSTALL_DIR}/switcher.py"
+fi
+
+echo
+echo " BI1OHC 73!"
+echo "============================================================"
