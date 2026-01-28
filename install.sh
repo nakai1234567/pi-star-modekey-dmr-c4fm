@@ -14,33 +14,33 @@ show_help() {
     echo "Pi-Star ModeKey DMR / C4FM Installer"
     echo
     echo "Usage:"
-    echo "  bash install.sh"
-    echo "  bash install.sh --help"
+    echo "  bash install.sh          # 交互选择安装版本"
+    echo "  bash install.sh --help   # 显示此帮助"
     echo
-    echo "Description:"
-    echo "  Install Pi-Star ModeKey service with physical button + LED"
-    echo "  Optional I2C LCD support is selectable during installation."
-    echo
-    echo "Options:"
-    echo "  --help    Show this help message and exit"
-    echo
-    echo "Notes:"
-    echo "  - Run 'rpi-rw' before installation (Pi-Star default is read-only)"
-    echo "  - Installation directory: /opt/pi-star-modekey"
-    echo "  - A systemd service will be created and enabled automatically"
-    echo
-    echo "73! BI1OHC"
+    echo "说明："
+    echo "  1) 无 LCD 版本：仅按键 + LED"
+    echo "  2) LCD 版本：按键 + LED + I2C LCD"
+    exit 0
 }
 
-# ---- help 参数 ----
-if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+if [[ "$1" == "--help" ]]; then
     show_help
-    exit 0
 fi
 
-echo "============================================"
-echo " Pi-Star ModeKey DMR / C4FM Installer"
-echo "============================================"
+echo "🔍 检查系统 apt 源..."
+BACKPORTS_LINE=$(grep -n "httpredir.debian.org/debian.*bullseye-backports" /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null || true)
+
+if [[ -n "$BACKPORTS_LINE" ]]; then
+    echo "⚠️ 发现无效 bullseye-backports 源，临时注释处理..."
+    while IFS= read -r line; do
+        file=$(echo "$line" | cut -d: -f1)
+        lineno=$(echo "$line" | cut -d: -f2)
+        sudo sed -i "${lineno}s/^/#DISABLED_BACKPORTS /" "$file"
+    done <<< "$BACKPORTS_LINE"
+else
+    echo "✅ 没有发现失效 backports 源"
+fi
+
 echo
 echo "请选择你要安装的版本："
 echo
@@ -69,12 +69,13 @@ sudo apt update
 sudo apt install -y python3 python3-rpi.gpio
 
 if [[ "$MODE" == "1" ]]; then
+    # --------- 无 LCD 版本 ---------
     echo
-    echo "➡️ 选择：无 LCD 版本"
-
+    echo "➡️ 安装无 LCD 版本"
     sudo cp switcher.py "$INSTALL_DIR/"
     sudo chmod +x "$INSTALL_DIR/switcher.py"
 
+    echo "🧩 创建 systemd 服务"
     sudo tee "$SERVICE_FILE" > /dev/null <<EOF
 [Unit]
 Description=Pi-Star ModeKey Switcher (No LCD)
@@ -89,16 +90,20 @@ RestartSec=3
 [Install]
 WantedBy=multi-user.target
 EOF
-else
-    echo
-    echo "➡️ 选择：LCD 版本"
 
+else
+    # --------- LCD 版本 ---------
+    echo
+    echo "➡️ 安装 LCD 版本"
+
+    echo "📦 安装 I2C / LCD 相关依赖"
     sudo apt install -y python3-smbus i2c-tools
-    sudo pip3 install RPLCD
+    sudo pip3 install --upgrade RPLCD
 
     sudo cp switcher-lcd.py "$INSTALL_DIR/"
     sudo chmod +x "$INSTALL_DIR/switcher-lcd.py"
 
+    echo "🧩 创建 systemd 服务"
     sudo tee "$SERVICE_FILE" > /dev/null <<EOF
 [Unit]
 Description=Pi-Star ModeKey Switcher (LCD)
@@ -123,4 +128,10 @@ sudo systemctl restart pi-star-modekey.service
 
 echo
 echo "✅ 安装完成！"
+echo
+echo "👉 当前运行脚本："
 systemctl cat pi-star-modekey.service | grep ExecStart
+
+echo
+echo "👉 查看运行状态："
+echo "   systemctl status pi-star-modekey.service"
