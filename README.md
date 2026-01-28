@@ -60,21 +60,20 @@ I wanted a simple button to quickly switch between modes whenever I need to.
 ## 安装 / Installation
 
 1. 切换到主目录（可选） / Go to home directory (optional):
-```bash
 cd ~
 确保 Pi-Star 已切换到读写模式 / Make sure Pi-Star is in read-write mode:
-
 sudo pistar-rw
-克隆仓库 / Clone repository:
 
+克隆仓库 / Clone repository:
 git clone https://github.com/nakai1234567/pi-star-modekey-dmr-c4fm
 cd pi-star-modekey-dmr-c4fm
+
 给安装脚本可执行权限 / Make installer executable:
-
 chmod +x install.sh
-运行安装脚本 / Run installer:
 
+运行安装脚本 / Run installer:
 sudo ./install.sh
+
 安装时会提示选择 无 LCD 版本 或 LCD 版本。
 The installer will ask whether to install the No LCD version or the LCD version.
 
