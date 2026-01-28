@@ -26,8 +26,8 @@ I wanted a simple button to quickly switch between modes whenever I need to.
   / GND (pin 14)  
 - 可选 I2C LCD (连接热点板 5V, GND, SDA, SCL)  
   / Optional I2C LCD (connect to hotspot board 5V, GND, SDA, SCL)  
-![LCD](images/6.jpg)
-![LCD](images/7.jpg)
+![](images/6.jpg)
+![](images/7.jpg)
 > **注意 / Note:** LCD 可选，安装脚本会根据选择自动安装所需依赖  
 > LCD is optional. The installer script will automatically install required dependencies if you select the LCD version.
 ![](images/4.jpg)
