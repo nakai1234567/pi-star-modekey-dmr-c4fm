@@ -1,0 +1,12 @@
+[Unit]
+Description=Pi-Star ModeKey DMR/C4FM Switcher
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /opt/pi-star-modekey/switcher.py
+WorkingDirectory=/opt/pi-star-modekey
+Restart=always
+User=root
+
+[Install]
+WantedBy=multi-user.target
