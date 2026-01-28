@@ -58,7 +58,7 @@ I wanted a simple button to quickly switch between modes whenever I need to.
 ---
 
 ## 安装 / Installation
-
+```bash
 1. 切换到主目录（可选） / Go to home directory (optional):
 cd ~
 确保 Pi-Star 已切换到读写模式 / Make sure Pi-Star is in read-write mode:
