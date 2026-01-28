@@ -10,23 +10,6 @@ set -e
 INSTALL_DIR="/opt/pi-star-modekey"
 SERVICE_FILE="/etc/systemd/system/pi-star-modekey.service"
 
-show_help() {
-    echo "Pi-Star ModeKey DMR / C4FM Installer"
-    echo
-    echo "Usage:"
-    echo "  bash install.sh          # 交互选择安装版本"
-    echo "  bash install.sh --help   # 显示此帮助"
-    echo
-    echo "说明："
-    echo "  1) 无 LCD 版本：仅按键 + LED"
-    echo "  2) LCD 版本：按键 + LED + I2C LCD"
-    exit 0
-}
-
-if [[ "$1" == "--help" ]]; then
-    show_help
-fi
-
 echo "🔍 检查系统 apt 源..."
 BACKPORTS_LINE=$(grep -n "httpredir.debian.org/debian.*bullseye-backports" /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null || true)
 
@@ -39,6 +22,19 @@ if [[ -n "$BACKPORTS_LINE" ]]; then
     done <<< "$BACKPORTS_LINE"
 else
     echo "✅ 没有发现失效 backports 源"
+fi
+
+show_help() {
+    echo "Pi-Star ModeKey DMR / C4FM Installer"
+    echo
+    echo "Usage:"
+    echo "  bash install.sh"
+    echo "  bash install.sh --help"
+}
+
+if [[ "$1" == "--help" ]]; then
+    show_help
+    exit 0
 fi
 
 echo
@@ -69,9 +65,10 @@ sudo apt update
 sudo apt install -y python3 python3-rpi.gpio
 
 if [[ "$MODE" == "1" ]]; then
-    # --------- 无 LCD 版本 ---------
     echo
-    echo "➡️ 安装无 LCD 版本"
+    echo "➡️ 选择：无 LCD 版本"
+
+    echo "📄 安装 switcher.py"
     sudo cp switcher.py "$INSTALL_DIR/"
     sudo chmod +x "$INSTALL_DIR/switcher.py"
 
@@ -92,14 +89,22 @@ WantedBy=multi-user.target
 EOF
 
 else
-    # --------- LCD 版本 ---------
     echo
-    echo "➡️ 安装 LCD 版本"
+    echo "➡️ 选择：LCD 版本"
 
     echo "📦 安装 I2C / LCD 相关依赖"
     sudo apt install -y python3-smbus i2c-tools
+
+    # 自动判断 pip3 是否存在
+    if ! command -v pip3 &> /dev/null; then
+        echo "📦 pip3 未安装，正在安装..."
+        sudo apt install -y python3-pip
+    fi
+
+    echo "📦 安装 Python LCD 库 (RPLCD)"
     sudo pip3 install --upgrade RPLCD
 
+    echo "📄 安装 switcher-lcd.py"
     sudo cp switcher-lcd.py "$INSTALL_DIR/"
     sudo chmod +x "$INSTALL_DIR/switcher-lcd.py"
 
