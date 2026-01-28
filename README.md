@@ -31,7 +31,7 @@ I wanted a simple button to quickly switch between modes whenever I need to.
 > **注意 / Note:** LCD 可选，安装脚本会根据选择自动安装所需依赖  
 > LCD is optional. The installer script will automatically install required dependencies if you select the LCD version.
 ![](images/4.jpg)
-![](images/5.jpg)
+![](images/5.png)
 ---
 
 ## 功能 / Features
