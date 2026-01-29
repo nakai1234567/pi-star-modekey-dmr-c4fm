@@ -12,17 +12,12 @@ BUTTON_PIN = 17   # 物理引脚 11
 LED_PIN    = 27   # 物理引脚 13
 # GND -> 公用物理引脚 14
 
-# GPIO 初始化
-
 def gpio_init():
     GPIO.setwarnings(False)
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     GPIO.setup(LED_PIN, GPIO.OUT)
     GPIO.output(LED_PIN, GPIO.LOW)
-
-
-# 工具函数
 
 def run_cmd(cmd):
     try:
@@ -36,9 +31,6 @@ def run_cmd(cmd):
         return True
     except Exception:
         return False
-
-
-# 模式切换逻辑
 
 def set_mode(mode):
 
@@ -62,11 +54,8 @@ def set_mode(mode):
     run_cmd("sudo systemctl restart mmdvmhost")
     run_cmd("sudo mount -o remount,ro /")
 
-
-# LED 显示逻辑
-
 def led_indicator(mode):
-    """切换完成后的 LED 确认反馈"""
+
     if mode == "DMR":
         for _ in range(5):
             GPIO.output(LED_PIN, GPIO.HIGH)
@@ -77,9 +66,6 @@ def led_indicator(mode):
         GPIO.output(LED_PIN, GPIO.HIGH)
         time.sleep(2)
         GPIO.output(LED_PIN, GPIO.LOW)
-
-
-# 心跳灯逻辑
 
 class Heartbeat:
     def __init__(self):
@@ -101,9 +87,6 @@ class Heartbeat:
                     time.sleep(0.15)
             self.counter = 0
 
-
-# 安全退出
-
 def cleanup(signum=None, frame=None):
     print("\n🛑 Switcher exiting, GPIO cleanup")
     GPIO.output(LED_PIN, GPIO.LOW)
@@ -113,16 +96,13 @@ def cleanup(signum=None, frame=None):
 signal.signal(signal.SIGINT, cleanup)
 signal.signal(signal.SIGTERM, cleanup)
 
-
-# 主程序入口
-
 def main():
     gpio_init()
     heartbeat = Heartbeat()
     current_mode = "DMR"
 
     while True:
-        # --- 按键检测 ---
+        
         if GPIO.input(BUTTON_PIN) == GPIO.LOW:
             current_mode = "C4FM" if current_mode == "DMR" else "DMR"
 
@@ -132,9 +112,8 @@ def main():
             print(f"切换成功！当前模式: {current_mode}")
 
             heartbeat.counter = 0
-            time.sleep(3)  # 防抖
+            time.sleep(3)  
 
-        # --- 心跳 ---
         heartbeat.tick(current_mode)
         time.sleep(0.1)
 
