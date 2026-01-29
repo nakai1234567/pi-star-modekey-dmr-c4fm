@@ -62,7 +62,7 @@ I wanted a simple button to quickly switch between modes whenever I need to.
 1. 切换到主目录（可选） / Go to home directory (optional):
 cd ~
 确保 Pi-Star 已切换到读写模式 / Make sure Pi-Star is in read-write mode:
-sudo pistar-rw
+rpi-rw
 
 克隆仓库 / Clone repository:
 git clone https://github.com/nakai1234567/pi-star-modekey-dmr-c4fm
