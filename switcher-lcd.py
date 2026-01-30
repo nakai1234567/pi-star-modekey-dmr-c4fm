@@ -35,7 +35,7 @@ def run_cmd(cmd):
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 def init_lcd():
-    
+
     global LCD_ENABLED, lcd
     try:
         from RPLCD.i2c import CharLCD
@@ -49,54 +49,141 @@ def init_lcd():
     except: pass
     return False
 
+def update_config_file(target_mode):
+
+    run_cmd("sudo mount -o remount,rw /")
+    
+    try:
+        with open(CFG_PATH, 'r') as f:
+            content = f.read()
+        
+        lines = content.split('\n')
+        new_lines = []
+        i = 0
+        
+        while i < len(lines):
+            line = lines[i]
+            
+
+            if line.strip() == '[DMR]':
+                new_lines.append(line)
+                i += 1
+                while i < len(lines) and lines[i].strip() and not lines[i].strip().startswith('['):
+                    if lines[i].strip().startswith('Enable='):
+
+                        if target_mode == "DMR":
+                            new_lines.append('Enable=1')
+                        else:
+                            new_lines.append('Enable=0')
+                    else:
+                        new_lines.append(lines[i])
+                    i += 1
+            
+
+            elif line.strip() == '[System Fusion]':
+                new_lines.append(line)
+                i += 1
+                while i < len(lines) and lines[i].strip() and not lines[i].strip().startswith('['):
+                    if lines[i].strip().startswith('Enable='):
+
+                        if target_mode == "C4FM":
+                            new_lines.append('Enable=1')
+                        else:
+                            new_lines.append('Enable=0')
+                    else:
+                        new_lines.append(lines[i])
+                    i += 1
+            
+
+            elif line.strip() == '[DMR Network]':
+                new_lines.append(line)
+                i += 1
+                while i < len(lines) and lines[i].strip() and not lines[i].strip().startswith('['):
+                    if lines[i].strip().startswith('Enable='):
+
+                        if target_mode == "DMR":
+                            new_lines.append('Enable=1')
+                        else:
+                            new_lines.append('Enable=0')
+                    else:
+                        new_lines.append(lines[i])  
+                    i += 1
+            
+
+            elif line.strip() == '[System Fusion Network]':
+                new_lines.append(line)
+                i += 1
+                while i < len(lines) and lines[i].strip() and not lines[i].strip().startswith('['):
+                    if lines[i].strip().startswith('Enable='):
+
+                        if target_mode == "C4FM":
+                            new_lines.append('Enable=1')
+                        else:
+                            new_lines.append('Enable=0')
+                    else:
+                        new_lines.append(lines[i]) 
+                    i += 1
+            
+
+            else:
+                new_lines.append(line)
+                i += 1
+        
+
+        with open(CFG_PATH, 'w') as f:
+            f.write('\n'.join(new_lines))
+        
+        return True
+        
+    except Exception as e:
+        print(f"配置文件更新失败: {e}")
+        return False
+    finally:
+        run_cmd("sync")
+        run_cmd("sudo mount -o remount,ro /")
+
 def clean_and_switch(target_mode):
 
     if LCD_ENABLED and lcd:
         try: 
-            lcd.clear() 
+            lcd.clear()  # 直接清屏，不显示任何内容
         except: 
             pass
     
     print(f"正在安全同步配置至: {target_mode} ...")
     
-    run_cmd("sudo mount -o remount,rw /")
-    
-    if target_mode == "C4FM":
-        run_cmd(f"sudo sed -i '/\\[System Fusion\\]/,/Enable=/ s/Enable=0/Enable=1/' {CFG_PATH}")
-        run_cmd(f"sudo sed -i '/\\[System Fusion Network\\]/,/Enable=/ s/Enable=0/Enable=1/' {CFG_PATH}")
-        run_cmd(f"sudo sed -i '/\\[DMR\\]/,/Enable=/ s/Enable=1/Enable=0/' {CFG_PATH}")
-        run_cmd(f"sudo sed -i '/\\[DMR Network\\]/,/Enable=/ s/Enable=1/Enable=0/' {CFG_PATH}")
+    if update_config_file(target_mode):
+        run_cmd("sudo systemctl restart mmdvmhost")
+        
+        print("切换中，请稍候...")
+        for _ in range(4):
+            GPIO.output(LED_PIN, GPIO.HIGH); time.sleep(0.2)
+            GPIO.output(LED_PIN, GPIO.LOW); time.sleep(0.8)
+
+        if LCD_ENABLED and lcd:
+            try:
+                lcd.clear()
+                lcd.write_string(f"{target_mode} OK!".ljust(16))
+            except: 
+                pass
+
+        if target_mode == "DMR":
+            for _ in range(5): # DMR: 快闪 5 次
+                GPIO.output(LED_PIN, GPIO.HIGH); time.sleep(0.1)
+                GPIO.output(LED_PIN, GPIO.LOW); time.sleep(0.1)
+        else:
+            GPIO.output(LED_PIN, GPIO.HIGH); time.sleep(2) # C4FM: 长亮 2 秒
+            GPIO.output(LED_PIN, GPIO.LOW)
+        
+        print(f"切换成功！当前模式: {target_mode}")
+        return True
     else:
-        run_cmd(f"sudo sed -i '/\\[DMR\\]/,/Enable=/ s/Enable=0/Enable=1/' {CFG_PATH}")
-        run_cmd(f"sudo sed -i '/\\[DMR Network\\]/,/Enable=/ s/Enable=0/Enable=1/' {CFG_PATH}")
-        run_cmd(f"sudo sed -i '/\\[System Fusion\\]/,/Enable=/ s/Enable=1/Enable=0/' {CFG_PATH}")
-        run_cmd(f"sudo sed -i '/\\[System Fusion Network\\]/,/Enable=/ s/Enable=1/Enable=0/' {CFG_PATH}")
-    
-    run_cmd("sync")
-    run_cmd("sudo systemctl restart mmdvmhost")
-    run_cmd("sudo mount -o remount,ro /")
-
-    print("切换中，请稍候...")
-    for _ in range(4):
-        GPIO.output(LED_PIN, GPIO.HIGH); time.sleep(0.2)
-        GPIO.output(LED_PIN, GPIO.LOW); time.sleep(0.8)
-
-    if LCD_ENABLED and lcd:
-        try:
-            lcd.clear()
-            lcd.write_string(f"{target_mode} OK!".ljust(16))
-        except: 
-            pass
-
-    if target_mode == "DMR":
-        for _ in range(5): # DMR: 快闪 5 次
+        print(f"切换失败！")
+        # 失败时的 LED 反馈
+        for _ in range(10):
             GPIO.output(LED_PIN, GPIO.HIGH); time.sleep(0.1)
             GPIO.output(LED_PIN, GPIO.LOW); time.sleep(0.1)
-    else:
-        GPIO.output(LED_PIN, GPIO.HIGH); time.sleep(2) # C4FM: 长亮 2 秒
-        GPIO.output(LED_PIN, GPIO.LOW)
-    
-    print(f"切换成功！当前模式: {target_mode}")
+        return False
 
 def get_current_mode():
 
@@ -105,20 +192,22 @@ def get_current_mode():
         if os.path.exists(CFG_PATH):
             with open(CFG_PATH, 'r') as f:
                 content = f.read()
-
-                if "[DMR]" in content:
-                    start = content.find("[DMR]")
-                    end = content.find("[", start + 1)
-                    section = content[start:end] if end != -1 else content[start:]
-                    if "Enable=1" in section:
-                        current_mode = "DMR"
-
-                if "[System Fusion]" in content:
-                    start = content.find("[System Fusion]")
-                    end = content.find("[", start + 1)
-                    section = content[start:end] if end != -1 else content[start:]
-                    if "Enable=1" in section:
-                        current_mode = "C4FM"
+                lines = content.split('\n')
+                
+                for i in range(len(lines)):
+                    if lines[i].strip() == '[DMR]':
+                        j = i + 1
+                        while j < len(lines) and lines[j].strip() and not lines[j].strip().startswith('['):
+                            if lines[j].strip().startswith('Enable=1'):
+                                return "DMR"
+                            j += 1
+                    
+                    if lines[i].strip() == '[System Fusion]':
+                        j = i + 1
+                        while j < len(lines) and lines[j].strip() and not lines[j].strip().startswith('['):
+                            if lines[j].strip().startswith('Enable=1'):
+                                return "C4FM"
+                            j += 1
     except: 
         pass
     return current_mode
@@ -129,7 +218,7 @@ def main():
     GPIO.setup(BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     GPIO.setup(LED_PIN, GPIO.OUT)
 
- 
+
     current_mode = get_current_mode()
     print(f"当前模式: {current_mode}")
 
@@ -169,9 +258,11 @@ def main():
                 
                 new_mode = "C4FM" if current_mode == "DMR" else "DMR"
                 print(f"\n检测到按键！切换目标: {new_mode}")
-                clean_and_switch(new_mode)
-                current_mode = new_mode
-                heartbeat_counter = 0
+                
+                if clean_and_switch(new_mode):
+                    current_mode = new_mode
+                    heartbeat_counter = 0
+                
                 time.sleep(0.5)  # 防抖
             
             if heartbeat_counter >= 100:  # 0.1s * 100 = 10秒
