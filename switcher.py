@@ -11,6 +11,7 @@ import RPi.GPIO as GPIO
 BUTTON_PIN = 17   # 物理引脚 11
 LED_PIN    = 27   # 物理引脚 13
 # GND -> 公用物理引脚 14
+CFG_PATH = "/etc/mmdvmhost"
 
 def gpio_init():
     GPIO.setwarnings(False)
@@ -32,27 +33,101 @@ def run_cmd(cmd):
     except Exception:
         return False
 
+def update_config_file(target_mode):
+
+    run_cmd("sudo mount -o remount,rw /")
+    
+    try:
+        with open(CFG_PATH, 'r') as f:
+            content = f.read()
+        
+        lines = content.split('\n')
+        new_lines = []
+        i = 0
+        
+        while i < len(lines):
+            line = lines[i]
+            
+            if line.strip() == '[DMR]':
+                new_lines.append(line)
+                i += 1
+                while i < len(lines) and lines[i].strip() and not lines[i].strip().startswith('['):
+                    if lines[i].strip().startswith('Enable='):
+
+                        if target_mode == "DMR":
+                            new_lines.append('Enable=1')
+                        else:
+                            new_lines.append('Enable=0')
+                    else:
+                        new_lines.append(lines[i])
+                    i += 1
+            
+            elif line.strip() == '[System Fusion]':
+                new_lines.append(line)
+                i += 1
+                while i < len(lines) and lines[i].strip() and not lines[i].strip().startswith('['):
+                    if lines[i].strip().startswith('Enable='):
+
+                        if target_mode == "C4FM":
+                            new_lines.append('Enable=1')
+                        else:
+                            new_lines.append('Enable=0')
+                    else:
+                        new_lines.append(lines[i])
+                    i += 1
+            
+            elif line.strip() == '[DMR Network]':
+                new_lines.append(line)
+                i += 1
+                while i < len(lines) and lines[i].strip() and not lines[i].strip().startswith('['):
+                    if lines[i].strip().startswith('Enable='):
+                        # 只修改 Enable 参数
+                        if target_mode == "DMR":
+                            new_lines.append('Enable=1')
+                        else:
+                            new_lines.append('Enable=0')
+                    else:
+                        new_lines.append(lines[i]) 
+                    i += 1
+            
+            elif line.strip() == '[System Fusion Network]':
+                new_lines.append(line)
+                i += 1
+                while i < len(lines) and lines[i].strip() and not lines[i].strip().startswith('['):
+                    if lines[i].strip().startswith('Enable='):
+
+                        if target_mode == "C4FM":
+                            new_lines.append('Enable=1')
+                        else:
+                            new_lines.append('Enable=0')
+                    else:
+                        new_lines.append(lines[i])
+                    i += 1
+            
+            else:
+                new_lines.append(line)
+                i += 1
+        
+        with open(CFG_PATH, 'w') as f:
+            f.write('\n'.join(new_lines))
+        
+        return True
+        
+    except Exception as e:
+        print(f"配置文件更新失败: {e}")
+        return False
+    finally:
+        run_cmd("sync")
+        run_cmd("sudo mount -o remount,ro /")
+
 def set_mode(mode):
 
     print(f"正在安全同步配置至: {mode} ...")
-
-    run_cmd("sudo mount -o remount,rw /")
-    cfg = "/etc/mmdvmhost"
-
-    if mode == "C4FM":
-        run_cmd(f"sudo sed -i '/\\[System Fusion\\]/,/Enable=/ s/Enable=0/Enable=1/' {cfg}")
-        run_cmd(f"sudo sed -i '/\\[System Fusion Network\\]/,/Enable=/ s/Enable=0/Enable=1/' {cfg}")
-        run_cmd(f"sudo sed -i '/\\[DMR\\]/,/Enable=/ s/Enable=1/Enable=0/' {cfg}")
-        run_cmd(f"sudo sed -i '/\\[DMR Network\\]/,/Enable=/ s/Enable=1/Enable=0/' {cfg}")
-    else:
-        run_cmd(f"sudo sed -i '/\\[DMR\\]/,/Enable=/ s/Enable=0/Enable=1/' {cfg}")
-        run_cmd(f"sudo sed -i '/\\[DMR Network\\]/,/Enable=/ s/Enable=0/Enable=1/' {cfg}")
-        run_cmd(f"sudo sed -i '/\\[System Fusion\\]/,/Enable=/ s/Enable=1/Enable=0/' {cfg}")
-        run_cmd(f"sudo sed -i '/\\[System Fusion Network\\]/,/Enable=/ s/Enable=1/Enable=0/' {cfg}")
-
-    run_cmd("sync")
-    run_cmd("sudo systemctl restart mmdvmhost")
-    run_cmd("sudo mount -o remount,ro /")
+    
+    if update_config_file(mode):
+        run_cmd("sudo systemctl restart mmdvmhost")
+        return True
+    return False
 
 def led_indicator(mode):
 
@@ -100,25 +175,42 @@ def main():
     gpio_init()
     heartbeat = Heartbeat()
     current_mode = "DMR"
+    last_button_time = 0
+    debounce_time = 0.5
 
     while True:
+        current_time = time.time()
         
-        if GPIO.input(BUTTON_PIN) == GPIO.LOW:
-            current_mode = "C4FM" if current_mode == "DMR" else "DMR"
 
-            print(f"\n检测到按键！切换目标: {current_mode}")
-            set_mode(current_mode)
-            led_indicator(current_mode)
-            print(f"切换成功！当前模式: {current_mode}")
+        if GPIO.input(BUTTON_PIN) == GPIO.LOW and (current_time - last_button_time) > debounce_time:
+            last_button_time = current_time
+            
+            GPIO.output(LED_PIN, GPIO.HIGH)
+            time.sleep(0.1)
+            GPIO.output(LED_PIN, GPIO.LOW)
+            
+            new_mode = "C4FM" if current_mode == "DMR" else "DMR"
+            print(f"\n检测到按键！切换目标: {new_mode}")
+            
+            if set_mode(new_mode):
 
+                current_mode = new_mode
+                led_indicator(current_mode)
+                print(f"切换成功！当前模式: {current_mode}")
+            else:
+
+                print("切换失败！")
+                for _ in range(10):
+                    GPIO.output(LED_PIN, GPIO.HIGH)
+                    time.sleep(0.1)
+                    GPIO.output(LED_PIN, GPIO.LOW)
+                    time.sleep(0.1)
+            
             heartbeat.counter = 0
-            time.sleep(3)  
+            time.sleep(0.5)
 
         heartbeat.tick(current_mode)
         time.sleep(0.1)
-
-
-# Entry Point
 
 if __name__ == "__main__":
     main()
